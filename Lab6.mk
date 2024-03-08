@@ -9,11 +9,14 @@ Lab6.elf: $(OBJS)
 	@echo done!
 	
 Lab6.o: Lab6.c
-	avr-gcc -g -Os -mmcu=atmega328 -c Lab6.c
+	avr-gcc --param=min-pagesize=0 -g -Os -mmcu=atmega328 -c Lab6.c
 
 usart.o: usart.c usart.h
-	avr-gcc -g -Os -Wall -mmcu=atmega328p -c usart.c
-	
+	avr-gcc --param=min-pagesize=0 -g -Os -Wall -mmcu=atmega328p -c usart.c
+
+lcd.o: lcd.c usart.h LCD.h
+	avr-gcc --param=min-pagesize=0 -g -Os -Wall -mmcu=atmega328p -c lcd.c
+
 clean:
 	@del *.hex *.elf *.o 2>nul
 

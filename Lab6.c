@@ -5,7 +5,10 @@
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 #include "usart.h"
+#include "lcd.h"
+
 
 /* Pinout for DIP28 ATMega328P:
 
@@ -115,6 +118,21 @@ int main(void)
 
 			printf("\033[A");
 			printf("\033[A");
+			
+
+			if(flag == 0){
+				LCDprint("Capacitance(uF)   ", 1, 1);
+				sprintf(buffer, "%guF", C);
+				LCDprint(buffer, 2, 1);
+			} else if(flag == 1){
+				LCDprint("Frequency(Hz)   ", 1, 1);
+				sprintf(buffer, "%luHz", f);
+				LCDprint(buffer, 2, 1);		
+			} else if(flag == 2){
+				LCDprint("Period(s)   ", 1, 1);
+				sprintf(buffer, "%fS", T);
+				LCDprint(buffer, 2, 1);		
+			}
 
 		}
 		else
