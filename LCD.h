@@ -1,4 +1,4 @@
-#define F_CPU 16000000L
+#define F_CPU 16000000UL
 
 #define LCD_RS_0 (PORTD &= ~(1<<3))
 #define LCD_RS_1 (PORTD |=  (1<<3))

@@ -8,6 +8,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+//#include <SoftwareSerial.h>
 #include "usart.h"
 #include "lcd.h"
 
@@ -33,6 +34,8 @@
   (PCINT0/CLKO/ICP1) PB0 -|14   15|- PB1 (OC1A/PCINT1)
                            -------
 */
+
+#define RF_SET P2_5
 
 unsigned int cnt = 0;
 volatile unsigned int reload;
@@ -101,6 +104,14 @@ long int GetPeriod (int n)
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
 }
 
+// void RF_init(void){
+// 	// RX = 2, TX = 3
+// 	SoftwareSerial mySerial(23, 24);
+//   	// Set up the software serial port for RF communication
+//   	mySerial.begin(9600);
+// }
+
+
 int main(void)
 {
 	long int count;
@@ -129,6 +140,8 @@ int main(void)
 	waitms(500); // Wait for putty to start
 	printf("Period measurement using the free running counter of timer 1.\n"
 	       "Connect signal to PB1 (pin 15).\n");
+
+	flag = 0;
 	
 	while (1)
 	{
