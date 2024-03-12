@@ -1,13 +1,18 @@
 // This program shows how to measure the period of a signal using timer 1 free running counter.
-
+#define DEF_FREQ 15000L
+#define OCR1_RELOAD ((F_CPU/(2*DEF_FREQ))+1)
 #define F_CPU 16000000UL
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+//#include <SoftwareSerial.h>
 #include "usart.h"
 #include "lcd.h"
+
+
 
 
 /* Pinout for DIP28 ATMega328P:
@@ -30,7 +35,17 @@
                            -------
 */
 
+#define RF_SET P2_5
+
 unsigned int cnt = 0;
+volatile unsigned int reload;
+
+ISR(TIMER1_COMPA_vect)
+{
+	OCR1A = OCR1A + reload;
+	PORTB ^= 0b00000011; // Toggle PB0 and PB1
+}
+
 
 void wait_1ms(void)
 {
@@ -40,6 +55,8 @@ void wait_1ms(void)
 	
 	while((TCNT1-saved_TCNT1)<(F_CPU/1000L)); // Wait for 1 ms to pass
 }
+
+
 
 void waitms(int ms)
 {
@@ -87,12 +104,32 @@ long int GetPeriod (int n)
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
 }
 
+// void RF_init(void){
+// 	// RX = 2, TX = 3
+// 	SoftwareSerial mySerial(23, 24);
+//   	// Set up the software serial port for RF communication
+//   	mySerial.begin(9600);
+// }
+
+
 int main(void)
 {
 	long int count;
 	float T, f, C, CuF;
+	unsigned int adc;
+	char buff[32];
+	unsigned long newF;
 	
-	usart_init(); // Configure the usart and baudrate
+	reload=OCR1_RELOAD; // Reload value for default output frequency 
+
+	DDRB=0b00000011; // PB1 (pin 15) and PB0 (pin 14) are our outputs
+	PORTB |= 0x01; // PB0=NOT(PB1)
+	TCCR1B |= _BV(CS10);   // set prescaler to Clock/1
+	TIMSK1 |= _BV(OCIE1A); // output compare match interrupt for register A
+	
+	sei(); // enable global interupt
+	usart_init (); // configure the usart and baudrate
+	adc_init();
 	
 	DDRB  &= 0b11111101; // Configure PB1 as input
 	PORTB |= 0b00000010; // Activate pull-up in PB1
@@ -103,9 +140,25 @@ int main(void)
 	waitms(500); // Wait for putty to start
 	printf("Period measurement using the free running counter of timer 1.\n"
 	       "Connect signal to PB1 (pin 15).\n");
+
+	flag = 0;
 	
 	while (1)
 	{
+		printf("Frequency: ");
+    	usart_gets(buff, sizeof(buff)-1);
+    	newF=atol(buff);
+
+	    if(newF>111000L)
+	    {
+	       printf("\r\nWarning: The maximum frequency that can be generated is around 111000Hz.\r\n");
+	       newF=111000L;
+	    }
+	    if(newF>0)
+	    {
+			reload=(F_CPU/(2L*newF))+1;  
+		    printf("\r\nFrequency set to: %ld\r\n", F_CPU/((reload-1)*2L));
+        }
 		count=GetPeriod(100);
 		if(count>0)
 		{
