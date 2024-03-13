@@ -43,7 +43,7 @@ volatile unsigned int reload;
 ISR(TIMER1_COMPA_vect)
 {
 	OCR1A = OCR1A + reload;
-	PORTB ^= 0b00000010; // Toggle PB1
+	PORTB ^= 0b00001000; // Toggle PB3
 }
 void LCD_pulse (void)
 {
@@ -183,6 +183,8 @@ int main(void)
 	unsigned int adc;
 	char buff[32];
 	unsigned long newF;
+	unsigned int pbflag;
+    bool buttonState = PINB & 0b00000100;
 
 	reload=OCR1_RELOAD; // Reload value for default output frequency 
 	DDRD|=0b11111000;
@@ -194,9 +196,9 @@ int main(void)
 	usart_init (); // configure the usart and baudrate
 
 	LCD_4BIT();
-	DDRB  &= 0b11111101; // Configure PB1 as input
-	PORTB |= 0b00000010; // Activate pull-up in PB1
-
+	DDRB  &= 0b11111001; // Configure PB1 and PB2 as input
+	PORTB |= 0b00000110; // Activate pull-up in PB1 and PB2
+	pbflag = 0;
 	// Turn on timer with no prescaler on the clock.  We use it for delays and to measure period.
 	TCCR1B |= _BV(CS10); // Check page 110 of ATmega328P datasheet
 
@@ -208,24 +210,64 @@ int main(void)
 	
 	while (1)
 	{
-		printf("Frequency: ");
-
+	
 		count=GetPeriod(100);
 		if(count>0)
-		{
+		{			
 			T=count/(F_CPU*100.0);
 			f=1/T;
 			C=1.44/(f*(1690.0+2.0*1690.0));
 			CuF=C*1000000.0;
-			printf("f=%fHz (count=%lu) \n", f, count);
-			printf("C=%f uF \n", CuF);
-			printf("\033[A");
-			printf("\033[A");
-			LCDprint("Capacitance(uF)   ", 1, 1);
-			sprintf(buff, "%guF", CuF);
-			LCDprint(buff, 2, 1);
+			buttonState = PINB & 0b00000100;
+		    // Button debouncing
+		    if(buttonState && !pbflag) {
+ 		       waitms(50);
+			   pbflag = 1; // Toggle flag
+	  		} else if (!buttonState && pbflag) {
+ 		       waitms(50);
+			   pbflag = 0; // Toggle flag
+    		}
+			
+				if(pbflag){
+				printf("f=%fHz (count=%lu) \n", f, count);
+				printf("C=%f uF \n", CuF);
+				printf("%d \n", buttonState); 
+				printf("\033[A");
+				printf("\033[A");
+				printf("\033[A");
+				LCDprint("Capacitance(uF)   ", 1, 1);
+				sprintf(buff, "%guF", CuF);
+				LCDprint(buff, 2, 1);
+				}
+				else{	
+				printf("f=%fHz (count=%lu) \n", f, count);
+				printf("C=%f uF \n", CuF);
+				printf("%d \n", buttonState); 
+				printf("\033[A");
+				printf("\033[A");
+				printf("\033[A");			
+				if(CuF > 0.08 && CuF < 0.12){
+					LCDprint("Estimated C(uF)", 1, 1);					
+					LCDprint("0.1uF, code 104", 2, 1);
+				} else if(CuF > 0.8 && CuF < 1.2){
+					LCDprint("Estimated C(uF)", 1, 1);					
+					LCDprint("1uF, code 105", 2, 1);
+				} else if(CuF > 0.008 && CuF < 0.012){
+					LCDprint("Estimated C(nF)", 1, 1);							
+					LCDprint("10nF, code 103", 2, 1);
+				} else if(CuF > 0.0008 && CuF < 0.002){
+					LCDprint("estimated C(nF)", 1, 1);
+					LCDprint("1nF, code 102", 2, 1);
+				} else{
+					LCDprint("No estimate, C=", 1, 1);
+					sprintf(buff, "%guF", CuF);
+					LCDprint(buff, 2, 1);
+				}
 
-		}
+				}
+
+				}
+
 		else
 		{
 			printf("NO SIGNAL                     \r");
