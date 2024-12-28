@@ -14,7 +14,6 @@ void ConfigureSoftwareUART (void)
 void SendByte (unsigned char c)
 {
 	unsigned char i;
-	
 	// Send start bit
 	sOUTPORT &= (~sTXD);
   	_delay_us(1E6/sBAUD);

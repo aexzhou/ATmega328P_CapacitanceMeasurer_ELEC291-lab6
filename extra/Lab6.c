@@ -201,7 +201,6 @@ int main(void)
 	usart_init();
 	sei(); // enable global interupt
 	
-	
 	//bit:     76543210
 	DDRB  &= 0b11111101; // Configure PB1 as input
 	PORTB |= 0b00000010; // Activate pull-up in PB1

@@ -2,6 +2,7 @@ SHELL=cmd
 OBJS=main.o usart.o lcd.o
 PORTN=$(shell type COMPORT.inc)
 
+
 avr_printf.elf: $(OBJS)
 	avr-gcc -mmcu=atmega328p $(OBJS) -o main.elf
 	avr-objcopy -j .text -j .data -O ihex main.elf main.hex

@@ -10,6 +10,7 @@
 
 idata char buff[20];
 
+
 char _c51_external_startup (void)
 {
 	// Disable Watchdog with key sequence

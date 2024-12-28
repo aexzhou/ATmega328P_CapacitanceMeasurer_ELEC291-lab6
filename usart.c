@@ -4,6 +4,7 @@
 
 // This code is mostly from http://efundies.com/avr-and-printf/
 
+
 static FILE mystdout = FDEV_SETUP_STREAM(usart_putchar_printf, NULL, _FDEV_SETUP_WRITE);
 
 void usart_init( void)

@@ -56,7 +56,7 @@ int main( void )
 	Configure_Pins();
 	LCD_4BIT();
 	
-	_delay_ms(500); // Give putty some time to start.
+	_delay_ms(500); // Providing putty some time to start first.
 	printf("ATMega328P 4-bit LCD test.\n");
 
    	// Display something in the LCD

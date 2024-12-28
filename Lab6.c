@@ -197,7 +197,6 @@ int main(void)
 	       "Connect signal to PB1 (pin 15).\n");
 
 
-	
 	while (1)
 	{
 	

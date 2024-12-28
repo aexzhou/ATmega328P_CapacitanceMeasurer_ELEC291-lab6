@@ -6,6 +6,7 @@ OBJS=Lab6.o usart.o lcd.o SoftwareUart.o
 OBJSc=Controller.obj
 CPU=-mmcu=atmega328p
 
+
 Lab6.elf: $(OBJS)
 	avr-gcc $(CPU) $(OBJS) -Wl,-Map,Lab6.map -Wl,-u,vfprintf -lprintf_flt -lm -o Lab6.elf
 	avr-objcopy -j .text -j .data -O ihex Lab6.elf Lab6.hex

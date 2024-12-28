@@ -15,8 +15,6 @@ unsigned char GetByte (void);
 void SendString(char * s);
 void GetString(char * s, int nmax);
 
-
-
 /* Pinout for DIP28 ATMega328P:
 
                            -------

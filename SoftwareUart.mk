@@ -6,6 +6,7 @@ OBJS= SoftwareUart.o
 
 COMPORT = $(shell type COMPORT.inc)
 
+
 SoftwareUart.elf: $(OBJS)
 	avr-gcc $(CPU) -Wl,-Map,SoftwareUart.map $(OBJS) -o SoftwareUart.elf
 	avr-objcopy -j .text -j .data -O ihex SoftwareUart.elf SoftwareUart.hex
