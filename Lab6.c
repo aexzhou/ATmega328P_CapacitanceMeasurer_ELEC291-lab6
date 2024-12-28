@@ -5,22 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+//#include <SoftwareSerial.h>
 #include "usart.h"
 #include "lcd.h"
-#include "SoftwareUart.h"
-
-// #define RED (1<<PC5)
-// #define YELLOW (1<<PC4)
-// #define RF_SET (1<<PC2)
-#define RED "PC3"
-#define YELLOW "PC4"
-#define BUFSIZE 80
-
-
 
 /* Pinout for DIP28 ATMega328P:
 
@@ -42,6 +32,7 @@
                            -------
 */
 
+#define RF_SET P2_5
 
 unsigned int cnt = 0;
 volatile unsigned int reload;
@@ -49,10 +40,73 @@ volatile unsigned int reload;
 ISR(TIMER1_COMPA_vect)
 {
 	OCR1A = OCR1A + reload;
-	PORTB ^= 0b00000011; // Toggle PB0 and PB1
-	//PORTD ^= 0b11000000;
-	//		   76543210
+	PORTB ^= 0b00001000; // Toggle PB3
 }
+void LCD_pulse (void)
+{
+	LCD_E_1;
+	_delay_us(40);
+	LCD_E_0;
+}
+
+void LCD_byte (unsigned char x)
+{
+	//Send high nible
+	if(x&0x80) LCD_D7_1; else LCD_D7_0;
+	if(x&0x40) LCD_D6_1; else LCD_D6_0;
+	if(x&0x20) LCD_D5_1; else LCD_D5_0;
+	if(x&0x10) LCD_D4_1; else LCD_D4_0;
+	LCD_pulse();
+	_delay_us(40);
+	//Send low nible
+	if(x&0x08) LCD_D7_1; else LCD_D7_0;
+	if(x&0x04) LCD_D6_1; else LCD_D6_0;
+	if(x&0x02) LCD_D5_1; else LCD_D5_0;
+	if(x&0x01) LCD_D4_1; else LCD_D4_0;
+	LCD_pulse();
+}
+
+void WriteData (unsigned char x)
+{
+	LCD_RS_1;
+	LCD_byte(x);
+	_delay_ms(2);
+}
+
+void WriteCommand (unsigned char x)
+{
+	LCD_RS_0;
+	LCD_byte(x);
+	_delay_ms(5);
+}
+
+void LCD_4BIT (void)
+{
+	LCD_E_0; // Resting state of LCD's enable is zero
+	//LCD_RW=0; // We are only writing to the LCD in this program
+	_delay_ms(20);
+	// First make sure the LCD is in 8-bit mode and then change to 4-bit mode
+	WriteCommand(0x33);
+	WriteCommand(0x33);
+	WriteCommand(0x32); // Change to 4-bit mode
+
+	// Configure the LCD
+	WriteCommand(0x28);
+	WriteCommand(0x0c);
+	WriteCommand(0x01); // Clear screen command (takes some time)
+	_delay_ms(20); // Wait for clear screen command to finsih.
+}
+
+void LCDprint(char * string, unsigned char line, unsigned char clear)
+{
+	int j;
+
+	WriteCommand(line==2?0xc0:0x80);
+	_delay_ms(5);
+	for(j=0; string[j]!=0; j++)	WriteData(string[j]);// Write the message
+	if(clear) for(; j<CHARS_PER_LINE; j++) WriteData(' '); // Clear the rest of the line
+}
+
 
 void wait_1ms(void)
 {
@@ -62,6 +116,8 @@ void wait_1ms(void)
 	
 	while((TCNT1-saved_TCNT1)<(F_CPU/1000L)); // Wait for 1 ms to pass
 }
+
+
 
 void waitms(int ms)
 {
@@ -109,173 +165,103 @@ long int GetPeriod (int n)
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
 }
 
-// Toglle pins for me so i dont have to do it the long shitty way
-void setPin(char* pinName, int val) {
-    if(val != 0 && val != 1) { // check input validity
-        return;
-    }
-    // get port and pin from pin name
-    if(pinName[0] == 'P') {
-        char port = pinName[1];
-        int pin = pinName[2] - '0'; // covert ascii to int
-        // set ddr (data direction register)
-        switch (port) {
-            case 'B':
-                DDRB |= (1 << pin);
-                if(val == 1)
-                    PORTB |= (1 << pin); // set portb high (1)
-                else
-                    PORTB &= ~(1 << pin); // set portb low (0)
-                break;
-            case 'C':
-                DDRC |= (1 << pin);
-                if(val == 1)
-                    PORTC |= (1 << pin);
-                else
-                    PORTC &= ~(1 << pin);
-                break;
-            case 'D':
-                DDRD |= (1 << pin);
-                if(val == 1)
-                    PORTD |= (1 << pin);
-                else
-                    PORTD &= ~(1 << pin);
-                break;
-            default:
-                break; 
-        }
-    }
-}
-
-void SendATCommand (char * s)
-{	
-	char buffer[BUFSIZE];
-	printf("Command: %s", s);
-	PORTC &= ~(1<<2); // 'set' pin to 0 is 'AT' mode.
-	
-	waitms(5);
-	printf("1");
-	SendString(s);
-	printf("2");
-	GetString(buffer, BUFSIZE-1);
-	printf("3");
-	waitms(10);
-	printf("4");
-	PORTC |= (1<<2); // 'set' pin to 1 is normal operation mode.
-	printf("5");
-	printf("Response: %s\r\n", buffer);
-	printf("6");
-}
-
-void Init_RF(void){
-	// We should select an unique device ID.  The device ID can be a hex
-	// number from 0x0000 to 0xFFFF.  In this case is set to 0xABBA
-	SendATCommand("AT+DVID1357\r\n");  
-	// To check configuration
-	SendATCommand("AT+VER\r\n");
-	SendATCommand("AT+BAUD\r\n");
-	SendATCommand("AT+RFID\r\n");
-	SendATCommand("AT+DVID\r\n");
-	SendATCommand("AT+RFC\r\n");
-	SendATCommand("AT+POWE\r\n");
-	SendATCommand("AT+CLSS\r\n");
-}
-
 
 int main(void)
 {
 	long int count;
 	float T, f, C, CuF;
 	unsigned int adc;
-	char buff[BUFSIZE];
+	char buff[32];
 	unsigned long newF;
-	//char flag = 0;
+	unsigned int pbflag;
+    bool buttonState = PINB & 0b00000100;
+
 	reload=OCR1_RELOAD; // Reload value for default output frequency 
-	//bit: 76543210 // 1 = output for DDRn
-	DDRB=0b00000011; // PB1 (pin 15) and PB0 (pin 14) are our outputs
-	DDRC=0b00011000; // Creg outputs for LEDS
-	DDRD |= 0b00010000; // set DDRD[4] to 1 output for "SET" for JDY-40
-	PORTB |= 0x01; // PB0=NOT(PB1)
+	DDRD|=0b11111000;
+	DDRB|=0b00000001; // PB0 (pin 14) as output
 	TCCR1B |= _BV(CS10);   // set prescaler to Clock/1
 	TIMSK1 |= _BV(OCIE1A); // output compare match interrupt for register A
-	usart_init();
+	
 	sei(); // enable global interupt
-	
-	
-	//bit:     76543210
-	DDRB  &= 0b11111101; // Configure PB1 as input
-	PORTB |= 0b00000010; // Activate pull-up in PB1
-	
-	ConfigureSoftwareUART(); // configure software UART for RF module
+	usart_init (); // configure the usart and baudrate
 
+	LCD_4BIT();
+	DDRB  &= 0b11111001; // Configure PB1 and PB2 as input
+	PORTB |= 0b00000110; // Activate pull-up in PB1 and PB2
+	pbflag = 0;
 	// Turn on timer with no prescaler on the clock.  We use it for delays and to measure period.
 	TCCR1B |= _BV(CS10); // Check page 110 of ATmega328P datasheet
 
 	waitms(500); // Wait for putty to start
 	printf("Period measurement using the free running counter of timer 1.\n"
 	       "Connect signal to PB1 (pin 15).\n");
-	Init_RF();
+
+
 	
 	while (1)
 	{
-		// printf("Frequency: ");
-    	// usart_gets(buff, sizeof(buff)-1);
-    	// newF=atol(buff);
-
-	    // if(newF>111000L)
-	    // {
-	    //    printf("\r\nWarning: The maximum frequency that can be generated is around 111000Hz.\r\n");
-	    //    newF=111000L;
-	    // }
-	    // if(newF>0)
-	    // {
-		// 	reload=(F_CPU/(2L*newF))+1;  
-		//     printf("\r\nFrequency set to: %ld\r\n", F_CPU/((reload-1)*2L));
-        // }
+	
 		count=GetPeriod(100);
 		if(count>0)
-		{
+		{			
 			T=count/(F_CPU*100.0);
 			f=1/T;
 			C=1.44/(f*(1690.0+2.0*1690.0));
 			CuF=C*1000000.0;
-			printf("f=%fHz (count=%lu) \n", f, count);
-			printf("C=%f uF \n", CuF);
+			buttonState = PINB & 0b00000100;
+		    // Button debouncing
+		    if(buttonState && !pbflag) {
+ 		       waitms(50);
+			   pbflag = 1; // Toggle flag
+	  		} else if (!buttonState && pbflag) {
+ 		       waitms(50);
+			   pbflag = 0; // Toggle flag
+    		}
+			
+				if(pbflag){
+				printf("f=%fHz (count=%lu) \n", f, count);
+				printf("C=%f uF \n", CuF);
+				printf("%d \n", buttonState); 
+				printf("\033[A");
+				printf("\033[A");
+				printf("\033[A");
+				LCDprint("Capacitance(uF)   ", 1, 1);
+				sprintf(buff, "%guF", CuF);
+				LCDprint(buff, 2, 1);
+				}
+				else{	
+				printf("f=%fHz (count=%lu) \n", f, count);
+				printf("C=%f uF \n", CuF);
+				printf("%d \n", buttonState); 
+				printf("\033[A");
+				printf("\033[A");
+				printf("\033[A");			
+				if(CuF > 0.08 && CuF < 0.12){
+					LCDprint("Estimated C(uF)", 1, 1);					
+					LCDprint("0.1uF, code 104", 2, 1);
+				} else if(CuF > 0.8 && CuF < 1.2){
+					LCDprint("Estimated C(uF)", 1, 1);					
+					LCDprint("1uF, code 105", 2, 1);
+				} else if(CuF > 0.008 && CuF < 0.012){
+					LCDprint("Estimated C(nF)", 1, 1);							
+					LCDprint("10nF, code 103", 2, 1);
+				} else if(CuF > 0.0008 && CuF < 0.002){
+					LCDprint("estimated C(nF)", 1, 1);
+					LCDprint("1nF, code 102", 2, 1);
+				} else{
+					LCDprint("No estimate, C=", 1, 1);
+					sprintf(buff, "%guF", CuF);
+					LCDprint(buff, 2, 1);
+				}
 
-			printf("\033[A");
-			printf("\033[A");
+				}
 
-			// if(flag == 0){
-			// 	LCDprint("Capacitance(uF)   ", 1, 1);
-			// 	sprintf(buff, "%guF", C);
-			// 	LCDprint(buff, 2, 1);
-			// } else if(flag == 1){
-			// 	LCDprint("Frequency(Hz)   ", 1, 1);
-			// 	sprintf(buff, "%luHz", f);
-			// 	LCDprint(buff, 2, 1);		
-			// } else if(flag == 2){
-			// 	LCDprint("Period(s)   ", 1, 1);
-			// 	sprintf(buff, "%fS", T);
-			// 	LCDprint(buff, 2, 1);		
-			// }
+				}
 
-		}
 		else
 		{
 			printf("NO SIGNAL                     \r");
 		}
-
-		//sprintf(buff,"f=%fHz", f);
-		strcpy(buff, "test");
-		SendString(buff);
-		//setPin(RED,0); // red on
-		//setPin(YELLOW,1); //yellow off
-		//PORTC |= 0x03;
-		//PORTC &= ~(1<<0x03);
-		//PORTC &= ~(1<<0x04);
-		//PORTC |= (1<<0x04);
-		
-		
 		waitms(200);
 	}
 }
